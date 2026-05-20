@@ -63,6 +63,14 @@ body{background:#1a1a2e;min-height:100vh;display:flex;justify-content:center;fon
 .overlay.show{display:flex}.result-box{background:#FFF;border-radius:20px;padding:32px 40px;text-align:center;min-width:240px}
 .result-box h2{font-size:24px;margin-bottom:8px}.result-box p{font-size:14px;color:#666;margin-bottom:16px}
 .result-box .btn{margin-top:8px;padding:10px 32px;border-radius:20px;border:none;font-size:13px;font-weight:600;cursor:pointer;background:linear-gradient(135deg,#7EC8E3,#5DB8D8);color:#FFF}
+.rank-list{text-align:left;margin:10px 0;padding:0;list-style:none;font-size:13px;max-height:220px;overflow-y:auto;min-width:200px}
+.rank-list li{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:4px;margin-bottom:2px}
+.rank-list li.current{background:#FFF3CD;font-weight:700}
+.rank-medal{font-size:18px;min-width:24px;text-align:center}
+.rank-num{min-width:24px;text-align:center;color:#999;font-weight:600}
+.rank-score{flex:1;text-align:right;font-weight:600}
+.rank-hp{font-size:11px;color:#999;margin-left:6px}
+.your-rank{font-size:14px;font-weight:700;color:#E24B4A;margin:4px 0 8px}
 @media(max-width:400px){.game-container{padding:10px}.gem{border-radius:4px}.enemy-sprite{font-size:40px}}
 </style>
 </head>
@@ -106,7 +114,7 @@ body{background:#1a1a2e;min-height:100vh;display:flex;justify-content:center;fon
 
 <div class="footer-msg" id="footerMsg">交换元素图标消除积攒能量, 能量满后点击头像释放元素爆发</div>
 
-<div class="overlay" id="victoryOverlay"><div class="result-box"><h2>胜利</h2><p id="victoryMsg">恭喜通关</p><button class="btn" onclick="resetBattle()">再来一局</button></div></div>
+<div class="overlay" id="victoryOverlay"><div class="result-box"><h2>胜利</h2><p id="victoryMsg">恭喜通关</p><div class="your-rank" id="yourRank"></div><ul class="rank-list" id="rankList"></ul><button class="btn" onclick="resetBattle()">再来一局</button></div></div>
 <div class="overlay" id="defeatOverlay"><div class="result-box"><h2>败北</h2><p>步数耗尽, 再试一次</p><button class="btn" onclick="resetBattle()">重新挑战</button></div></div>
 
 <!-- 预加载语音 -->
@@ -708,11 +716,38 @@ function updateUI(){
   }
 }
 
-function showVictory(){gameOver=1;stopBGM();document.getElementById('victoryOverlay').classList.add('show');document.getElementById('victoryMsg').textContent='通关! 得分: '+score+' 剩余HP: '+playerHP;
+function showVictory(){if(gameOver)return;gameOver=1;stopBGM();
+  // 保存积分榜
+  const lb=loadLeaderboard();
+  const entry={score:score,date:new Date().toLocaleDateString()};
+  lb.push(entry);
+  lb.sort((a,b)=>b.score-a.score);
+  if(lb.length>50)lb.length=50;
+  saveLeaderboard(lb);
+  const myRank=lb.findIndex(e=>e===entry)+1;
+  // 渲染
+  document.getElementById('victoryOverlay').classList.add('show');
+  document.getElementById('victoryMsg').textContent='通关! 得分: '+score;
+  document.getElementById('yourRank').textContent='🏆 本次排名 #'+myRank;
+  const list=document.getElementById('rankList');
+  list.innerHTML='';
+  const medals=['','🥇','🥈','🥉'];
+  for(let i=0;i<Math.min(lb.length,10);i++){
+    const e=lb[i];
+    const li=document.createElement('li');
+    if(e===entry)li.classList.add('current');
+    const badge=i<3?'<span class="rank-medal">'+medals[i+1]+'</span>':'<span class="rank-num">#'+(i+1)+'</span>';
+    li.innerHTML=badge+'<span class="rank-score">'+e.score+'</span>';
+    list.appendChild(li);
+  }
   // 延迟播放胜利音效（等语音收尾）
   setTimeout(()=>{const a=document.getElementById('sfx_victory');if(a){try{a.currentTime=0;}catch(e){}a.volume=0.7;a.play().catch(()=>{});}},400);
 }
 function showDefeat(){gameOver=1;stopBGM();document.getElementById('defeatOverlay').classList.add('show');}
+
+// 积分榜
+function loadLeaderboard(){try{return JSON.parse(localStorage.getItem('xlwy_lb'))||[]}catch(e){return[]}}
+function saveLeaderboard(lb){try{localStorage.setItem('xlwy_lb',JSON.stringify(lb))}catch(e){}}
 
 // 行/列清冰爆破效果 - 从中心线往两侧渐变到70%
 function showSweep(mc,affectedRows,affectedCols){
